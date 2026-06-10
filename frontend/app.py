@@ -39,6 +39,14 @@ def api(method: str, path: str, **kwargs):
     except requests.exceptions.ConnectionError:
         st.error("Cannot connect to the backend. Make sure the FastAPI server is running.")
         return None
+    except requests.exceptions.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.response.json().get("detail", "")
+        except Exception:
+            pass
+        st.error(f"Backend error: {detail or exc}")
+        return None
     except Exception as exc:
         st.error(f"API error: {exc}")
         return None

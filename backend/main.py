@@ -1,5 +1,9 @@
+import logging
 import os
+import traceback
 from contextlib import asynccontextmanager
+
+logger = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
@@ -87,6 +91,7 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     try:
         result = graph.invoke(initial_state)
     except Exception as exc:
+        logger.error("Graph invocation failed:\n%s", traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Agent pipeline error: {exc}")
 
     final_response = result.get("final_response") or "I wasn't able to process your request. Please try again."
