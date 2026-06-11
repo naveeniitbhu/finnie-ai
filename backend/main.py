@@ -1,18 +1,11 @@
 import logging
-import os
 import traceback
 from contextlib import asynccontextmanager
-
-logger = logging.getLogger(__name__)
-
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.messages import AIMessage, HumanMessage
 from sqlalchemy.orm import Session
-
-load_dotenv()
-
 from backend.db.database import get_db, init_db
 from backend.db.crud import (
     create_session,
@@ -23,8 +16,16 @@ from backend.db.crud import (
     update_session_title,
     update_user_profile,
 )
-from backend.models.schemas import ChatRequest, ChatResponse, SessionCreate, UserProfile
+from backend.models.schemas import (
+    ChatRequest,
+    ChatResponse,
+    SessionCreate,
+    UserProfile,
+)
 from backend.agents.graph import graph
+
+load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -34,12 +35,17 @@ async def lifespan(app: FastAPI):
     # the HuggingFace model download + ChromaDB seeding (can take 60–90s).
     import asyncio
     from backend.rag.retriever import get_vectorstore
+
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, get_vectorstore)
     yield
 
 
-app = FastAPI(title="Financial Advisor API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="Financial Advisor API",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -94,7 +100,10 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
         logger.error("Graph invocation failed:\n%s", traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Agent pipeline error: {exc}")
 
-    final_response = result.get("final_response") or "I wasn't able to process your request. Please try again."
+    final_response = (
+        result.get("final_response")
+        or "I wasn't able to process your request. Please try again."
+    )
     agent_used = result.get("agent_used") or "Unknown"
 
     # Auto-title the session on the first message
@@ -103,9 +112,13 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
         update_session_title(db, request.session_id, title)
 
     save_message(db, request.session_id, request.user_id, "human", request.message)
-    save_message(db, request.session_id, request.user_id, "assistant", final_response, agent_used)
+    save_message(
+        db, request.session_id, request.user_id, "assistant", final_response, agent_used
+    )
 
-    return ChatResponse(response=final_response, agent_used=agent_used, session_id=request.session_id)
+    return ChatResponse(
+        response=final_response, agent_used=agent_used, session_id=request.session_id
+    )
 
 
 @app.get("/profile/{user_id}")
@@ -124,7 +137,9 @@ async def get_profile(user_id: str, db: Session = Depends(get_db)):
 
 
 @app.put("/profile/{user_id}")
-async def update_profile(user_id: str, profile: UserProfile, db: Session = Depends(get_db)):
+async def update_profile(
+    user_id: str, profile: UserProfile, db: Session = Depends(get_db)
+):
     data = profile.model_dump(exclude_none=True)
     user = update_user_profile(db, user_id, data)
     return {"message": "Profile updated", "user_id": user.user_id}
